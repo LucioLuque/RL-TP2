@@ -1,0 +1,50 @@
+env1:
+  episodes: 500
+  buffer_size: 10000
+  max_steps: 100
+  gamma: 0.99
+  alpha: 0.001
+  target_update_freq: 500
+  min_epsilon: 0.05
+  max_epsilon: 1.0
+  decay_rate: 0.01
+  batch_size: 64
+
+env2:
+  episodes: 500
+  buffer_size: 10000
+  max_steps: 100
+  gamma: 0.99
+  alpha: 0.001
+  target_update_freq: 500
+  min_epsilon: 0.05
+  max_epsilon: 1.0
+  decay_rate: 0.01
+  batch_size: 64
+
+env3:
+  episodes: 500
+  buffer_size: 10000
+  max_steps: 100
+  gamma: 0.99
+  alpha: 0.001
+  target_update_freq: 500
+  min_epsilon: 0.05
+  max_epsilon: 1.0
+  decay_rate: 0.01
+  batch_size: 64
+
+cartpole:
+  episodes: 200
+  buffer_size: 10000
+  max_steps: 500
+  gamma: 0.99
+  alpha: 0.0001
+  target_update_freq: 500
+  min_epsilon: 0.05
+  max_epsilon: 1.0
+  decay_rate: 0.001
+  batch_size: 64
+
+xtra:
+  seed: 42

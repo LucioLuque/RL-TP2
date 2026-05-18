@@ -1,0 +1,23 @@
+parte1_1:
+  episodes: 1000
+  alpha: 0.001
+  gamma: 0.99
+  epsilon: 0.7
+parte1_2:
+  episodes: 5000
+  gamma: 0.99
+  best_alpha: 0.1
+  best_epsilon: 0.4
+parte1_4:
+  episodes: 5000
+  alpha: 0.1
+  gamma: 0.99
+parte1_5:
+  episodes: 5000
+  alpha: 0.1
+  gamma: 0.99
+  min_epsilon: 0.2
+  max_epsilon: 0.4
+  decay_rate: 0.01
+xtra:
+  seed: 42
