@@ -9,13 +9,12 @@ class RandomObsBinaryRewardEnv(gym.Env):
 
         self.action_space = gym.spaces.Discrete(1)
         self.observation_space = gym.spaces.Discrete(2) # obs = -1 o obs = +1
-
+        self.obs_to_reward = {0: -1.0, 1: 1.0}
         self._terminated = False
         self._obs = None
 
     def _get_obs(self):
-        return self.np.random
-    
+        return np.random.choice([0, 1])
 
     def reset(self, seed: Optional[int] = None, options: Optional[dict] = None):
         super().reset(seed=seed)
@@ -33,7 +32,7 @@ class RandomObsBinaryRewardEnv(gym.Env):
         if self._terminated:
             raise RuntimeError("Terminated. reset")
 
-        reward = float(self._obs[0])
+        reward = self.obs_to_reward[self._obs]
 
         self._terminated = True
         truncated = False

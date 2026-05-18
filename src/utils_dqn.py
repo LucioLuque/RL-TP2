@@ -98,6 +98,9 @@ def evaluate_dqn_env2(path, env, episodes=100, seed=42):
     total_error = 0.0
     total_steps = 0
 
+    def to_semantic_obs(state_value):
+        return -1.0 if int(state_value) == 0 else 1.0
+
     for episode in range(episodes):
         state, info = env.reset(seed=seed + episode)
 
@@ -111,7 +114,7 @@ def evaluate_dqn_env2(path, env, episodes=100, seed=42):
                 q_values = q_net(state_tensor)
             action = q_values.argmax(dim=1).item()
 
-            obs_value = float(np.array(state).reshape(-1)[0])
+            obs_value = to_semantic_obs(np.array(state).reshape(-1)[0])
             q_value = q_values.cpu().numpy().flatten()[0].item()
 
             obs_q[obs_value].add(round(q_value, 4))

@@ -13,6 +13,7 @@ class QLearning:
         self.min_epsilon = min_epsilon
         if max_epsilon is None:
             self.max_epsilon = self.min_epsilon
+            self.decay_rate = 0.0
         else:
             self.max_epsilon = max_epsilon
             self.decay_rate = decay_rate
@@ -21,6 +22,7 @@ class QLearning:
             self.writer = SummaryWriter(log_dir=log_dir)
 
         self.Q = np.zeros((env.observation_space.n, env.action_space.n))
+        self.total_steps = 0
 
     def choose_action(self, state, epsilon):
         if np.random.rand() < epsilon:
@@ -76,12 +78,6 @@ class QLearning:
                     f"Q-values/Episode/state_{s}_action_{a}",
                     q_sa,
                     episode
-                )
-
-                self.writer.add_scalar(
-                    f"Q-values/TotalSteps/state_{s}_action_{a}",
-                    q_sa,
-                    self.total_steps
                 )
 
     def train(self, seed, log_q_values=False):

@@ -161,15 +161,6 @@ class DQN:
             states_tensor = self.obs_to_tensor(states)
             state_names = [f"state_{s}" for s in states]
 
-        elif isinstance(self.env.observation_space, gym.spaces.Box):
-            # Caso particular de RandomObsBinaryRewardEnv:
-            # aunque el espacio sea Box, las únicas observaciones posibles son [-1.0] y [1.0]
-            states = [
-                np.array([-1.0], dtype=np.float32),
-                np.array([1.0], dtype=np.float32)
-            ]
-            states_tensor = self.obs_to_tensor(states)
-            state_names = ["obs_minus_1", "obs_plus_1"]
         else:
             return
 

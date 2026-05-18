@@ -8,9 +8,9 @@ from gymnasium.wrappers import RecordVideo
 from utils import deterministic, load_from_tensorboard
 from q_learning import QLearning
 
-def train_experiment(experiment_folder, env, episodes, alpha, gamma, min_epsilon, max_epsilon=None, decay_rate=None, seed=42, save=True):
+def train_q_learning(experiment_folder, env, episodes, alpha, gamma, min_epsilon, max_epsilon=None, decay_rate=None, seed=42, save=True, log_q_values=False):
 
-    run_folder = f"../runs/{experiment_folder}"
+    run_folder = f"../runs/q_learning/{experiment_folder}"
     experiment = f"epi_{episodes}_a_{alpha}_g_{gamma}_eps_{min_epsilon}"
     if max_epsilon is not None and decay_rate is not None:
         experiment += f"_max_eps_{max_epsilon}_decay_{decay_rate}"
@@ -31,7 +31,7 @@ def train_experiment(experiment_folder, env, episodes, alpha, gamma, min_epsilon
     log_dir = path if save else None
 
     q_learning_model = QLearning(env, episodes, alpha, gamma, min_epsilon, max_epsilon, decay_rate, log_dir)
-    q_learning_model.train(seed)
+    q_learning_model.train(seed=seed, log_q_values=log_q_values)
     if save:
         q_learning_model.save_model(model_path)
 
@@ -88,7 +88,7 @@ def search_hyperparameters(experiment_folder, env, episodes, gamma, alphas, epsi
         if i > 0:
             print(f"Best epsilon for alpha {alphas[i-1]}: {best_a_eps[alphas[i-1]]} with success rate {best_rates[alphas[i-1]]:.2f}")
         for eps in epsilons:
-            path, Q = train_experiment(experiment_folder, env, episodes, alpha, gamma, eps, seed, save=False)
+            path, Q = train_q_learning(experiment_folder, env, episodes, alpha, gamma, eps, seed=seed, save=False)
             
             success_rate = evaluate_Q_model(Q, env, episodes=100, epsilon=0.0, seed=seed)
             if success_rate > best_success_rate:
@@ -115,7 +115,7 @@ def search_eps_decay(experiment_folder, env, episodes, gamma, alpha, min_epsilon
     for i, (min_epsilon, max_epsilon) in enumerate(min_max_pairs):
         for decay_rate in decays_rate:
 
-            path, Q = train_experiment(experiment_folder, env, episodes, alpha, gamma, min_epsilon, max_epsilon, decay_rate, seed, save=False)
+            path, Q = train_q_learning(experiment_folder, env, episodes, alpha, gamma, min_epsilon, max_epsilon, decay_rate, seed=seed, save=False)
             
             success_rate = evaluate_Q_model(Q, env, episodes=100, epsilon=0.0, seed=seed)
             if success_rate > best_rates[min_epsilon]:
@@ -139,7 +139,7 @@ def search_eps_decay(experiment_folder, env, episodes, gamma, alpha, min_epsilon
 
 def plot_mean_rewards(folder_name, window=100):
     path = Path(f"../runs/{folder_name}")
-    episodes, rewards = load_from_tensorboard(path, "Reward")
+    episodes, rewards = load_from_tensorboard(path, "Reward/Episode")
 
     mean_rewards = [np.mean(rewards[i:i+window]) for i in range(0, len(rewards), window)]
 
