@@ -7,12 +7,13 @@ from gymnasium.wrappers import RecordVideo
 import torch
 import gymnasium as gym
 import torch.nn.functional as F
+import optuna
 
 from utils import deterministic, load_from_tensorboard
 from dqn import DQN
 from q_network import QNetwork
 
-def train_dqn(experiment_folder, env, episodes, buffer_size, max_steps, gamma, lr, target_update_freq, min_epsilon, max_epsilon, decay_rate, batch_size,seed=42, save=True, log_q_values=False):
+def train_dqn(experiment_folder, env, episodes, buffer_size, max_steps, gamma, lr, target_update_freq, min_epsilon, max_epsilon, decay_rate, batch_size,seed=42, save=True, log_q_values=False, trial = None):
 
     run_folder = f"../runs/dqn/{experiment_folder}"
     experiment = f"epi_{episodes}_buf_{buffer_size}_steps_{max_steps}_g_{gamma}_lr_{lr}_target_{target_update_freq}_eps_{min_epsilon}_max_eps_{max_epsilon}_decay_{decay_rate}_batch_{batch_size}"
@@ -33,12 +34,11 @@ def train_dqn(experiment_folder, env, episodes, buffer_size, max_steps, gamma, l
     log_dir = path if save else None
     
     dqn_model = DQN(env, episodes, buffer_size, max_steps, gamma, lr, target_update_freq, min_epsilon, max_epsilon, decay_rate, log_dir)
-    dqn_model.train(batch_size, seed, log_q_values)
+    training_results = dqn_model.train(batch_size, seed, log_q_values, trial)
     if save:
         dqn_model.q_net.save(model_path)
 
-    return model_path, dqn_model.q_net.state_dict()
-
+    return model_path, dqn_model.q_net.state_dict(), training_results
 
 def obs_to_tensor(state, env, device):
     if isinstance(env.observation_space, gym.spaces.Discrete):

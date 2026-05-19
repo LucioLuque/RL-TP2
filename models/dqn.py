@@ -6,6 +6,7 @@ import torch
 import gymnasium as gym
 import torch.nn.functional as F
 from tqdm.auto import tqdm
+import optuna
 
 from q_network import QNetwork
 
@@ -179,11 +180,18 @@ class DQN:
                     episode
                 )
     
-    def train(self, batch_size = 32, seed = None, log_q_values = False):
+    def train(self, batch_size = 32, seed = None, log_q_values = False, trial=None, report_freq=10):
+        reward_history = []
+        moving_avg_history = []
+        best_moving_avg = -np.inf
+        
         bar = tqdm(range(self.episodes), desc="Training DQN")
         for episode in bar:
             total_reward, reward_per_step, mean_loss, episode_steps = self.run_episode(episode, batch_size, seed)
             self.total_steps += episode_steps
+
+            reward_history.append(total_reward)
+
             if hasattr(self, 'writer'):
                 self.writer.add_scalar('Reward/Episode', total_reward, episode)
                 self.writer.add_scalar("Reward/TotalSteps", total_reward, self.total_steps)
@@ -195,5 +203,47 @@ class DQN:
                 if log_q_values:
                     self.log_all_q_values(episode)
             
+            window = min(20, len(reward_history))
+
+            moving_avg = np.mean(reward_history[-window:])
+            moving_std = np.std(reward_history[-window:])
+
+            moving_avg_history.append(moving_avg)
+
+            best_moving_avg = max(best_moving_avg, moving_avg)
+
+
+            
+
+            if trial is not None:
+
+                convergence_bonus = max(
+                    0.0,
+                    1.0 - (episode / 160)
+                )
+
+                score = (
+                    moving_avg
+                    - 0.25 * moving_std
+                    + 10 * convergence_bonus
+                )                
+
+                if episode % report_freq == 0:
+                    trial.report(score, step=episode)
+
+                    if trial.should_prune():
+
+                        print(f"Trial pruned at episode {episode}")
+
+                        raise optuna.exceptions.TrialPruned()
+
+            
             bar.set_postfix({'Reward': total_reward, 'Mean Reward': reward_per_step, 'Loss': mean_loss})
 
+        return {
+                "reward_history": reward_history,
+                "moving_avg_history": moving_avg_history,
+                "final_moving_avg": moving_avg_history[-1],
+                "best_moving_avg": best_moving_avg,
+                "final_std": np.std(reward_history[-20:]),
+                }
