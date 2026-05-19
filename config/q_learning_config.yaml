@@ -25,16 +25,16 @@ parte1_1:
   gamma: 0.99
   epsilon: 0.7
 parte1_2:
-  episodes: 5000
+  episodes: 10000
   gamma: 0.99
   best_alpha: 0.05
   best_epsilon: 0.3
 parte1_4:
-  episodes: 5000
+  episodes: 10000
   alpha: 0.05
   gamma: 0.99
 parte1_5:
-  episodes: 5000
+  episodes: 10000
   alpha: 0.05
   gamma: 0.99
   min_epsilon: 0.1
