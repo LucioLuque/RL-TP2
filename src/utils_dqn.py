@@ -217,6 +217,41 @@ def evaluate_dqn(path, env, episodes=100, seed=42):
 
     return successes / episodes, rewards / episodes
 
+
+def evaluate_dqn_model(path, env, model_params, episodes=100, seed=42):  
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  
+    if isinstance(env.observation_space, gym.spaces.Discrete):
+        input_dim = env.observation_space.n
+    else:
+        input_dim = int(np.prod(env.observation_space.shape))
+
+    q_net = QNetwork(input_dim, env.action_space.n).to(device)
+    q_net.load_state_dict(model_params)
+    q_net.eval()
+
+    successes = 0
+    rewards = 0.0
+    for episode in range(episodes):
+        state, info = env.reset(seed=seed + episode)
+
+        terminated = False
+        truncated = False
+        reward_ep = 0.0
+
+        while not terminated and not truncated:
+            state_tensor = obs_to_tensor([state], env, device)
+            action = q_net.get_action(state_tensor)
+            with torch.no_grad():
+                    q_values = q_net(state_tensor)
+            state, reward, terminated, truncated, info = env.step(action)
+            reward_ep += reward
+        if reward_ep == 500:
+            successes += 1
+        
+        rewards += reward_ep
+
+    return successes / episodes, rewards / episodes
+
 def record_experiment(experiment_path, experiment_name, env, num_episodes=1, epsilon=0.0, seed=42):
     deterministic(seed=seed)
     video_folder = os.path.join("..", "videos")
