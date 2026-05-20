@@ -24,7 +24,7 @@ def train_dqn_agent(experiment_folder, env, episodes, buffer_size, max_steps, ga
     if os.path.exists(path):
         print(f"Experiment {run_folder}/{experiment} already exists.")
         q_net_state_dict = torch.load(model_path)
-        return model_path, q_net_state_dict
+        return model_path, q_net_state_dict, None
     
     deterministic(seed)
 
@@ -124,40 +124,40 @@ def evaluate_dqn(path, env, episodes=100, seed=42):
 
 #     return successes / episodes, rewards / episodes
 
-# def record_experiment(experiment_path, experiment_name, env, num_episodes=1, epsilon=0.0, seed=42):
-#     deterministic(seed=seed)
-#     video_folder = os.path.join("..", "videos")
-#     os.makedirs(video_folder, exist_ok=True)
+def record_experiment(experiment_path, experiment_name, env, num_episodes=1, epsilon=0.0, seed=42):
+    deterministic(seed=seed)
+    video_folder = os.path.join("..", "videos")
+    os.makedirs(video_folder, exist_ok=True)
     
-#     env = RecordVideo(
-#         env, 
-#         video_folder=video_folder,
-#         episode_trigger=lambda ep: True,  
-#         name_prefix=experiment_name
-#     )
+    env = RecordVideo(
+        env, 
+        video_folder=video_folder,
+        episode_trigger=lambda ep: True,  
+        name_prefix=experiment_name
+    )
     
-#     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  
 
-#     if isinstance(env.observation_space, gym.spaces.Discrete):
-#         input_dim = env.observation_space.n
-#     else:
-#         input_dim = int(np.prod(env.observation_space.shape))
+    if isinstance(env.observation_space, gym.spaces.Discrete):
+        input_dim = env.observation_space.n
+    else:
+        input_dim = int(np.prod(env.observation_space.shape))
 
-#     q_net = QNetwork(input_dim, env.action_space.n).to(device)
-#     q_net.load(experiment_path)
+    q_net = QNetwork(input_dim, env.action_space.n).to(device)
+    q_net.load(experiment_path)
 
-#     for episode in range(num_episodes):
-#         state, info = env.reset(seed=seed if episode == 0 else None)
-#         terminated = False
-#         total_reward = 0
+    for episode in range(num_episodes):
+        state, info = env.reset(seed=seed if episode == 0 else None)
+        terminated = False
+        total_reward = 0
 
-#         while not terminated:
-#             state_tensor = obs_to_tensor([state], env, device)
-#             action = q_net.get_action(state_tensor)
-#             state, reward, terminated, truncated, info = env.step(action)
-#             terminated = terminated or truncated
-#             total_reward += reward
+        while not terminated:
+            state_tensor = obs_to_tensor([state], env, device)
+            action = q_net.get_action(state_tensor)
+            state, reward, terminated, truncated, info = env.step(action)
+            terminated = terminated or truncated
+            total_reward += reward
 
-#         print(f"Episode {episode+1} | Total reward: {total_reward}")
+        print(f"Episode {episode+1} | Total reward: {total_reward}")
 
-#     env.close()
+    env.close()

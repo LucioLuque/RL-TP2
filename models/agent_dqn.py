@@ -150,7 +150,7 @@ class AgentDQN:
         reward += 3 * abs(state[1])
 
         if terminated:
-            reward += 100
+            reward += 10
 
         return reward
     

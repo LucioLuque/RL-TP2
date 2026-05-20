@@ -1,0 +1,12 @@
+{
+  "best_value": 300.9588473717374,
+  "best_params": {
+    "lr": 0.000900049412798678,
+    "target_update_freq": 650,
+    "min_epsilon": 0.02953398202048975,
+    "decay_rate": 0.021786900290933824,
+    "batch_size": 64
+  },
+  "n_trials": 86,
+  "env_id": "CartPole-v1"
+}
