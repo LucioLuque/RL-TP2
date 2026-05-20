@@ -1,0 +1,18 @@
+mountaincar:
+  episodes: 1000
+  buffer_size: 20000
+  max_steps: 200
+  gamma: 0.99
+  lr: 0.001
+  tau: 0.005
+  min_epsilon: 0.05
+  max_epsilon: 1.0
+  decay_rate: 0.01
+  batch_size: 64
+  prefill_episodes: 20
+  prefill_epsilon: 0.05
+  n_step: 3
+  batch_size: 64
+
+xtra:
+  seed: 42

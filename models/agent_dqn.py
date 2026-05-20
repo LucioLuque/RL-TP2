@@ -7,6 +7,8 @@ import gymnasium as gym
 import torch.nn.functional as F
 from tqdm.auto import tqdm
 import optuna
+from collections import deque
+import pickle
 
 from q_network import QNetwork
 
@@ -30,10 +32,23 @@ class ReplayBuffer:
             return None
         indices = np.random.choice(len(self.buffer), batch_size, replace=False)
         return [self.buffer[i] for i in indices]
+    
+    def save(self, path):
+        if not os.path.exists(os.path.dirname(path)):
+            os.makedirs(os.path.dirname(path))
+        with open(path, 'wb') as f:
+            pickle.dump(self.buffer, f)
 
-class DQN:
+    def load(self, path):
+        with open(path, 'rb') as f:
+            self.buffer = pickle.load(f)
+
+        self.seen = len(self.buffer)
+
+
+class AgentDQN:
     def __init__(self, env, episodes: int, buffer_size: int, max_steps: int, gamma: float, lr: float,
-        target_update_freq: int, min_epsilon: float, max_epsilon: float, decay_rate: float, log_dir: str = None):
+        tau: float, min_epsilon: float, max_epsilon: float, decay_rate: float, prefill_episodes: int = 20, prefill_epsilon: float = 0.05, n_step: int = 1, log_dir: str = None):
         self.env = env
         self.episodes = episodes
 
@@ -44,11 +59,18 @@ class DQN:
         self.total_steps = 0
 
         self.gamma = gamma
-        self.target_update_freq = target_update_freq
+        self.tau = tau
 
         self.min_epsilon = min_epsilon
         self.max_epsilon = max_epsilon
         self.decay_rate = decay_rate
+
+        self.prefill_episodes = prefill_episodes
+        self.prefill_epsilon = prefill_epsilon
+
+        self.n_step = n_step
+        self.n_step_buffer = deque(maxlen=n_step)
+
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
@@ -102,10 +124,12 @@ class DQN:
         q_values = self.q_net(states_tensor).gather(1, actions_tensor.unsqueeze(1)).squeeze(1)
 
         with torch.no_grad():
-            next_q_values = self.target_q_net(next_states_tensor).max(1)[0]
-            target_q_values = rewards_tensor + self.gamma * next_q_values * (1 - dones_tensor)
+            #ddqn
+            next_actions = self.q_net(next_states_tensor).argmax(1)
+            next_q_values = self.target_q_net(next_states_tensor).gather(1, next_actions.unsqueeze(1)).squeeze(1)
 
-        # loss = F.mse_loss(q_values, target_q_values)
+            target_q_values = rewards_tensor + (self.gamma ** self.n_step) * next_q_values * (1 - dones_tensor)
+
         loss = F.smooth_l1_loss(q_values, target_q_values)
         
         self.optimizer.zero_grad()
@@ -116,11 +140,91 @@ class DQN:
 
         self.optimizer.step()
 
-        self.updates += 1
-        if self.updates % self.target_update_freq == 0:
-            self.target_q_net.load_state_dict(self.q_net.state_dict())
+        for target_param, param in zip(self.target_q_net.parameters(), self.q_net.parameters()):
+            target_param.data.copy_(self.tau * param.data + (1.0 - self.tau) * target_param.data)
 
         return loss.item()
+    
+    def reward_shaping(self, state, reward, terminated):
+        # reward shaping: bonus for velocity
+        reward += 3 * abs(state[1])
+
+        if terminated:
+            reward += 100
+
+        return reward
+    
+    def prefill_replay_buffer(self, seed=None):
+
+        successful = 0
+        attempts = 0
+        max_attempts = 1000
+        while successful < self.prefill_episodes and attempts < max_attempts:
+            if seed is not None:
+                state, _ = self.env.reset(seed=seed + attempts)
+            else:
+                state, _ = self.env.reset()
+            attempts += 1
+            self.n_step_buffer.clear()
+            episode_transitions = []
+            done = False
+            while not done:
+                position, velocity = state
+
+                # policy
+                if velocity > 0:
+                    action = 2  # push right
+                else:
+                    action = 0  # push left
+
+                if np.random.rand() < self.prefill_epsilon:
+                    action = self.env.action_space.sample()
+
+                next_state, reward, terminated, truncated, _ = self.env.step(action)
+
+                done = terminated or truncated
+
+                reward = self.reward_shaping(next_state, reward, terminated)
+
+                self.n_step_buffer.append((state, action, reward, next_state, done))
+
+                if len(self.n_step_buffer) == self.n_step:
+                    transition = self.compute_n_step_transition()
+
+                    episode_transitions.append(transition)
+
+                    self.n_step_buffer.popleft()
+
+                state = next_state
+
+                if done:
+                    while len(self.n_step_buffer) > 0:
+                        transition = self.compute_n_step_transition()
+                        episode_transitions.append(transition)
+                        self.n_step_buffer.popleft()
+
+                    if terminated: #only succesful episodes
+                        for transition in episode_transitions:
+                            self.replay_buffer.update(transition)
+                        successful += 1
+                    break
+
+        print(f"Prefilled replay buffer with {successful} successful episodes in {attempts} attempts.")
+    
+    def compute_n_step_transition(self):
+        reward, next_state, done = 0, None, False
+        for i, (_, _, r, ns, d) in enumerate(self.n_step_buffer):
+            reward += (self.gamma ** i) * r
+
+            next_state = ns
+            done = d
+
+            if done:
+                break
+
+        state, action = self.n_step_buffer[0][:2]
+
+        return state, action, reward, next_state, done
         
     def run_episode(self, episode, batch_size, seed = None):
         if seed is not None:
@@ -128,19 +232,30 @@ class DQN:
         else:
             state, info = self.env.reset()
 
+        self.n_step_buffer.clear()
+
         total_reward = 0.0
         losses = []
         epsilon = self.get_epsilon(episode)
 
         for step in range(self.max_steps):
+            self.total_steps += 1
             action = self.choose_action(state, epsilon)
 
             next_state, reward, terminated, truncated, info = self.env.step(action)
             done = terminated or truncated
 
-            self.replay_buffer.update((state, action, reward, next_state, done))
+            reward = self.reward_shaping(next_state, reward, terminated)
 
-            loss = self.update(batch_size)
+            self.n_step_buffer.append((state, action, reward, next_state, done))
+            if len(self.n_step_buffer) == self.n_step:
+                transition = self.compute_n_step_transition()
+                self.replay_buffer.update(transition)
+                self.n_step_buffer.popleft()
+
+            loss = None
+            if self.total_steps % 4 == 0: # update every 4 steps
+                loss = self.update(batch_size)
 
             if loss is not None:
                 losses.append(loss)
@@ -149,12 +264,19 @@ class DQN:
             total_reward += reward
 
             if done:
+                while len(self.n_step_buffer) > 0:
+                    transition = self.compute_n_step_transition()
+                    self.replay_buffer.update(transition)
+
+                    self.n_step_buffer.popleft()
                 break
 
         mean_loss = np.mean(losses) if losses else 0.0
         mean_reward = total_reward / (step + 1)
 
-        return total_reward, mean_reward, mean_loss, step + 1
+        
+
+        return total_reward, mean_reward, mean_loss
     
     def log_all_q_values(self, episode):
         if not hasattr(self, "writer"):
@@ -186,15 +308,22 @@ class DQN:
                     episode
                 )
     
-    def train(self, batch_size = 32, seed = None, log_q_values = False, trial=None, report_freq=10):
+    def train(self, batch_size = 32, seed = None, log_q_values = False, trial=None, report_freq=10, prefill_path=None):
+
+        if prefill_path is not None and os.path.exists(prefill_path):
+            self.replay_buffer.load(prefill_path)
+        else:
+            self.prefill_replay_buffer(seed)
+            if prefill_path is not None:
+                self.replay_buffer.save(prefill_path)
+
         reward_history = []
         moving_avg_history = []
         best_moving_avg = -np.inf
         
         bar = tqdm(range(self.episodes), desc="Training DQN")
         for episode in bar:
-            total_reward, reward_per_step, mean_loss, episode_steps = self.run_episode(episode, batch_size, seed)
-            self.total_steps += episode_steps
+            total_reward, reward_per_step, mean_loss = self.run_episode(episode, batch_size, seed)
 
             reward_history.append(total_reward)
 
@@ -217,9 +346,6 @@ class DQN:
             moving_avg_history.append(moving_avg)
 
             best_moving_avg = max(best_moving_avg, moving_avg)
-
-
-            
 
             if trial is not None:
 

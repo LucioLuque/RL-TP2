@@ -43,6 +43,8 @@ def evaluate_Q(path, env, episodes=100, epsilon=0.0, seed=42):
 
     successes = 0
 
+    truncateds = 0
+
     for episode in range(episodes):
         state, info = env.reset(seed=seed + episode)
 
@@ -52,11 +54,14 @@ def evaluate_Q(path, env, episodes=100, epsilon=0.0, seed=42):
         while not terminated and not truncated:
             action = q_learning_model.choose_action(state, epsilon)
             state, reward, terminated, truncated, info = env.step(action)
-
+            if truncated:
+                truncateds += 1
+                break
         if reward == 1:
             successes += 1
 
-    return successes / episodes
+
+    return successes / episodes, truncateds
 
 def evaluate_Q_model(Q, env, episodes=100, epsilon=0.0, seed=42):    
     q_learning_model = QLearning(env, 0, 0, 0, 0, log_dir=None)
@@ -149,11 +154,11 @@ def plot_mean_rewards(folder_name, window=100):
     plt.plot(x_values, mean_rewards, marker='o', label="Mean Reward (100 episodes)")
     plt.xlabel("Episode", fontsize=16)
     plt.ylabel("Mean Reward", fontsize=16)
-    xticks = list(range(0, len(rewards), 100))
+    # xticks = list(range(0, len(rewards), 100))
 
-    if len(rewards) - 1 not in xticks:
-        xticks.append(len(rewards) - 1)
-    plt.xticks(xticks, rotation=45)
+    # if len(rewards) - 1 not in xticks:
+    #     xticks.append(len(rewards) - 1)
+    # plt.xticks(xticks, rotation=45)
     plt.grid()
     plt.tight_layout()
     plt.legend(fontsize = 16)
