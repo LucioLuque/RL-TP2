@@ -142,7 +142,7 @@ def search_eps_decay(experiment_folder, env, episodes, gamma, alpha, min_epsilon
 
     return best_max_decay, global_best
 
-def plot_mean_rewards(folder_name, window=100):
+def plot_mean_rewards(folder_name, img_path, window=100):
     path = Path(f"../runs/{folder_name}")
     episodes, rewards = load_from_tensorboard(path, "Reward/Episode")
 
@@ -162,6 +162,12 @@ def plot_mean_rewards(folder_name, window=100):
     plt.grid()
     plt.tight_layout()
     plt.legend(fontsize = 16)
+
+    path = Path(img_path)
+    if not os.path.exists(path.parent):
+        os.makedirs(path.parent)
+    plt.savefig(path, dpi=300, bbox_inches="tight")
+
     plt.show()
 
 def record_experiment(experiment_path, experiment_name, env, num_episodes=1, epsilon=0.0, seed=42):
