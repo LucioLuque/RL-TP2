@@ -121,6 +121,34 @@ class DQN:
             self.target_q_net.load_state_dict(self.q_net.state_dict())
 
         return loss.item()
+
+    def evaluate_greedy_policy(self, n_episodes=5, seed=10000):
+        rewards = []
+
+        was_training = self.q_net.training
+        self.q_net.eval()
+
+        for ep in range(n_episodes):
+            state, info = self.env.reset(seed=seed + ep)
+            total_reward = 0.0
+
+            for _ in range(self.max_steps):
+                action = self.choose_action(state, epsilon=0.0)
+
+                next_state, reward, terminated, truncated, info = self.env.step(action)
+
+                total_reward += reward
+                state = next_state
+
+                if terminated or truncated:
+                    break
+
+            rewards.append(total_reward)
+
+        if was_training:
+            self.q_net.train()
+
+        return float(np.mean(rewards)), float(np.std(rewards))
         
     def run_episode(self, episode, batch_size, seed = None):
         if seed is not None:
@@ -180,16 +208,18 @@ class DQN:
             for a in range(n_actions):
                 q_sa = q_values[s_idx, a]
 
-                self.writer.add_scalar(
-                    f"Q-values/Episode/{state_name}_action_{a}",
-                    q_sa,
-                    episode
-                )
+                self.writer.add_scalar(f"Q-values/Episode/{state_name}_action_{a}", q_sa, episode)
     
     def train(self, batch_size = 32, seed = None, log_q_values = False, trial=None, report_freq=10):
         reward_history = []
         moving_avg_history = []
+        eval_reward_history = []
         best_moving_avg = -np.inf
+        best_eval_reward = -np.inf
+
+        first_solved_episode = None
+        eval_std = 0.0
+        eval_reward = 0.0
         
         bar = tqdm(range(self.episodes), desc="Training DQN")
         for episode in bar:
@@ -197,8 +227,26 @@ class DQN:
             self.total_steps += episode_steps
 
             reward_history.append(total_reward)
+            
+            window = min(20, len(reward_history))
 
-            if hasattr(self, 'writer'):
+            moving_avg = np.mean(reward_history[-window:])
+
+            moving_avg_history.append(moving_avg)
+
+            best_moving_avg = max(best_moving_avg, moving_avg)
+
+            # eval_reward, eval_std = self.evaluate_greedy_policy(n_episodes=5, seed=10000 + episode * 100)
+
+            eval_reward_history.append((episode, eval_reward))
+            best_eval_reward = max(best_eval_reward, eval_reward)
+
+            if first_solved_episode is None and eval_reward >= 495.0:
+                first_solved_episode = episode
+
+            if hasattr(self, "writer"):
+                self.writer.add_scalar("Eval/GreedyReward", eval_reward, episode)
+
                 self.writer.add_scalar('Reward/Episode', total_reward, episode)
                 self.writer.add_scalar("Reward/TotalSteps", total_reward, self.total_steps)
 
@@ -209,39 +257,27 @@ class DQN:
                 if log_q_values:
                     self.log_all_q_values(episode)
             
-            window = min(20, len(reward_history))
 
-            moving_avg = np.mean(reward_history[-window:])
-            moving_std = np.std(reward_history[-window:])
+            if trial is not None and episode % report_freq == 0:
+                trial.report(eval_reward, step=episode)
 
-            moving_avg_history.append(moving_avg)
+                if trial.should_prune():
+                    print(f"Trial pruned at episode {episode}")
 
-            best_moving_avg = max(best_moving_avg, moving_avg)
+                    raise optuna.exceptions.TrialPruned()
 
+                # convergence_bonus = max(0.0, 1.0 - (episode / 160))
 
-            
+                # score = (moving_avg - 0.25 * moving_std + 10 * convergence_bonus)                
 
-            if trial is not None:
+                # if episode % report_freq == 0:
+                #     trial.report(score, step=episode)
 
-                convergence_bonus = max(
-                    0.0,
-                    1.0 - (episode / 160)
-                )
+                #     if trial.should_prune():
 
-                score = (
-                    moving_avg
-                    - 0.25 * moving_std
-                    + 10 * convergence_bonus
-                )                
+                #         print(f"Trial pruned at episode {episode}")
 
-                if episode % report_freq == 0:
-                    trial.report(score, step=episode)
-
-                    if trial.should_prune():
-
-                        print(f"Trial pruned at episode {episode}")
-
-                        raise optuna.exceptions.TrialPruned()
+                #         raise optuna.exceptions.TrialPruned()
 
             
             bar.set_postfix({'Reward': total_reward, 'Mean Reward': reward_per_step, 'Loss': mean_loss})
@@ -252,4 +288,9 @@ class DQN:
                 "final_moving_avg": moving_avg_history[-1],
                 "best_moving_avg": best_moving_avg,
                 "final_std": np.std(reward_history[-20:]),
+                "eval_reward_history": eval_reward_history,
+                "final_eval_reward": eval_reward_history[-1][1],
+                "best_eval_reward": best_eval_reward,
+                "final_eval_std": eval_std,
+                "first_solved_episode": first_solved_episode
                 }

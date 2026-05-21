@@ -67,7 +67,7 @@ def evaluate_dqn(path, env, episodes=100, seed=42):
     q_net = QNetwork(input_dim, env.action_space.n).to(device)
     q_net.load(path)
 
-    rewards = 0.0
+    episode_rewards = []
     for episode in range(episodes):
         state, info = env.reset(seed=seed + episode)
 
@@ -78,14 +78,15 @@ def evaluate_dqn(path, env, episodes=100, seed=42):
         while not terminated and not truncated:
             state_tensor = obs_to_tensor([state], env, device)
             action = q_net.get_action(state_tensor)
-            with torch.no_grad():
-                    q_values = q_net(state_tensor)
             state, reward, terminated, truncated, info = env.step(action)
             reward_ep += reward
- 
-        rewards += reward_ep
 
-    return rewards / episodes
+        episode_rewards.append(reward_ep)
+
+    mean_reward = float(np.mean(episode_rewards))
+    std = float(np.std(episode_rewards))
+
+    return mean_reward, std
 
 # def evaluate_dqn_model(path, env, model_params, episodes=100, seed=42):  
 #     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  

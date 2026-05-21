@@ -155,7 +155,6 @@ class AgentDQN:
         return reward
     
     def prefill_replay_buffer(self, seed=None):
-
         successful = 0
         attempts = 0
         max_attempts = 1000

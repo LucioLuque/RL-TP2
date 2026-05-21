@@ -24,7 +24,7 @@ def train_dqn(experiment_folder, env, episodes, buffer_size, max_steps, gamma, l
     if os.path.exists(path):
         print(f"Experiment {run_folder}/{experiment} already exists.")
         q_net_state_dict = torch.load(model_path)
-        return model_path, q_net_state_dict
+        return model_path, q_net_state_dict, None
     
     deterministic(seed)
 

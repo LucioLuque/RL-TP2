@@ -32,68 +32,23 @@ def make_objective(
         hparams = {
             "episodes": fixed.get("episodes", 200),
 
-            "buffer_size": fixed.get("buffer_size", 10000),
+            "buffer_size": fixed.get("buffer_size", 15000),
 
-            "max_steps":
-                fixed.get("max_steps", 500),
+            "max_steps": fixed.get("max_steps", 500),
 
-            "gamma":
-                fixed.get("gamma", 0.99),
+            "gamma": fixed.get("gamma", 0.99),
 
-            "lr":
-                fixed.get(
-                    "lr",
-                    trial.suggest_float(
-                        "lr",
-                        1e-4,
-                        1e-2,
-                        log=True
-                    )
-                ),
+            "lr": fixed.get("lr", trial.suggest_float("lr", 1e-4, 1e-2, log=True)),
 
-            "target_update_freq":
-                fixed.get(
-                    "target_update_freq",
-                    trial.suggest_int(
-                        "target_update_freq",
-                        50,
-                        700,
-                        step=50
-                    )
-                ),
+            "target_update_freq": trial.suggest_categorical("target_update_freq", [100, 200, 500]),
 
-            "min_epsilon":
-                fixed.get(
-                    "min_epsilon",
-                    trial.suggest_float(
-                        "min_epsilon",
-                        0.01,
-                        0.10
-                    )
-                ),
+            "min_epsilon": trial.suggest_categorical("min_epsilon", [0.0, 0.005, 0.01, 0.02]),
 
-            "max_epsilon":
-                fixed.get("max_epsilon", 1.0),
+            "max_epsilon": fixed.get("max_epsilon", 1.0),
 
-            "decay_rate":
-                fixed.get(
-                    "decay_rate",
-                    trial.suggest_float(
-                        "decay_rate",
-                        1e-3,
-                        1e-1,
-                        log=True
-                    )
-                ),
+            "decay_rate": trial.suggest_float("decay_rate", 0.005, 0.03, log=True),
 
-            "batch_size":
-                fixed.get(
-                    "batch_size",
-                    trial.suggest_categorical(
-                        "batch_size",
-                        [32, 64, 128]
-                    )
-                ),
+            "batch_size": fixed.get("batch_size", 64)
         }
 
         env = gym.make(env_id)
@@ -133,25 +88,24 @@ def make_objective(
         finally:
             env.close()
 
-        final_avg = training_stats["final_moving_avg"]
+        final_eval = training_stats["final_eval_reward"]
+        best_eval = training_stats["best_eval_reward"]
+        final_eval_std = training_stats["final_eval_std"]
 
-        best_avg = training_stats["best_moving_avg"]
+        first_solved_episode = training_stats["first_solved_episode"]
 
-        final_std = training_stats["final_std"]
-
-
-        score = (
-            0.6 * final_avg
-            + 0.4 * best_avg
-            - 0.3 * final_std
-        )
+        if first_solved_episode is None:
+            score = -np.inf
+        else:
+            speed_score = max(0.0, 160 - first_solved_episode)
+            score = (0.6 * final_eval + 0.4 * best_eval - 0.3 * final_eval_std + 0.5 * speed_score)
 
         trial_data = {
             "trial_number": trial.number,
             "status": "completed",
-            "final_moving_avg": float(final_avg),
-            "best_moving_avg": float(best_avg),
-            "final_std": float(final_std),
+            "final_moving_avg": float(final_eval),
+            "best_moving_avg": float(best_eval),
+            "final_std": float(final_eval_std),
             "score": float(score),
             "hparams": hparams,
         }
@@ -160,16 +114,16 @@ def make_objective(
             f.write(json.dumps(trial_data) + "\n")
 
         if (
-            best_avg >= 495
-            and final_std <= 10
+            best_eval >= 495
+            and final_eval_std <= 10
         ):
 
             converged_data = {
                 "trial_number": trial.number,
                 "score": float(score),
-                "final_moving_avg": float(final_avg),
-                "best_moving_avg": float(best_avg),
-                "final_std": float(final_std),
+                "final_moving_avg": float(final_eval),
+                "best_moving_avg": float(best_eval),
+                "final_std": float(final_eval_std),
                 "hparams": hparams,
             }
 
@@ -179,8 +133,8 @@ def make_objective(
         print(
             f"Trial {trial.number} | "
             f"Score={score:.2f} | "
-            f"FinalAvg={final_avg:.2f} | "
-            f"Std={final_std:.2f}"
+            f"FinalAvg={final_eval:.2f} | "
+            f"Std={final_eval_std:.2f}"
         )
 
         return score
