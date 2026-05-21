@@ -16,7 +16,7 @@ def train_q_learning(experiment_folder, env, episodes, alpha, gamma, min_epsilon
         experiment += f"_max_eps_{max_epsilon}_decay_{decay_rate}"
     path = f"{run_folder}/{experiment}"
 
-    model_path = f"../models/saved_models/{experiment_folder}/{experiment}.npy"
+    model_path = f"../models/saved_models/q_learning/{experiment_folder}/{experiment}.npy"
 
     if os.path.exists(path):
         print(f"Experiment {run_folder}/{experiment} already exists.")
@@ -117,6 +117,7 @@ def search_eps_decay(experiment_folder, env, episodes, gamma, alpha, min_epsilon
     bar = tqdm(total=total_iterations, desc="Searching hyper")
 
     global_best = { "min_epsilon": None, "max_epsilon": None, "decay_rate": None, "success_rate": 0.0}
+    bests = []
     for i, (min_epsilon, max_epsilon) in enumerate(min_max_pairs):
         for decay_rate in decays_rate:
 
@@ -124,7 +125,7 @@ def search_eps_decay(experiment_folder, env, episodes, gamma, alpha, min_epsilon
             
             success_rate = evaluate_Q_model(Q, env, episodes=100, epsilon=0.0, seed=seed)
             if success_rate > best_rates[min_epsilon]:
-                best_max_decay[min_epsilon] = (max_epsilon, decay_rate)
+                best_max_decay[min_epsilon] = (max_epsilon, decay_rate, success_rate)
                 best_rates[min_epsilon] = success_rate
 
             if success_rate > global_best["success_rate"]:
@@ -151,7 +152,7 @@ def plot_mean_rewards(folder_name, img_path, window=100):
     x_values = [min(i + window - 1, len(rewards) - 1) for i in range(0, len(rewards), window)]
 
     fig = plt.figure(figsize=(10, 4))
-    plt.plot(x_values, mean_rewards, marker='o', label="Mean Reward (100 episodes)")
+    plt.plot(x_values, mean_rewards, marker='o', label=f"Mean Reward ({window} episodes)")
     plt.xlabel("Episode", fontsize=16)
     plt.ylabel("Mean Reward", fontsize=16)
     # xticks = list(range(0, len(rewards), 100))

@@ -130,13 +130,15 @@ class AgentDQN:
 
             target_q_values = rewards_tensor + (self.gamma ** self.n_step) * next_q_values * (1 - dones_tensor)
 
-        loss = F.smooth_l1_loss(q_values, target_q_values)
+        # loss = F.smooth_l1_loss(q_values, target_q_values)
+
+        loss = F.mse_loss(q_values, target_q_values)
         
         self.optimizer.zero_grad()
         
         loss.backward()
         
-        torch.nn.utils.clip_grad_norm_(self.q_net.parameters(), max_norm=1.0)
+        # torch.nn.utils.clip_grad_norm_(self.q_net.parameters(), max_norm=1.0)
 
         self.optimizer.step()
 
