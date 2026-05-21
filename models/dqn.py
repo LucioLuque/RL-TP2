@@ -105,14 +105,14 @@ class DQN:
             next_q_values = self.target_q_net(next_states_tensor).max(1)[0]
             target_q_values = rewards_tensor + self.gamma * next_q_values * (1 - dones_tensor)
 
-        # loss = F.mse_loss(q_values, target_q_values)
-        loss = F.smooth_l1_loss(q_values, target_q_values)
+        loss = F.mse_loss(q_values, target_q_values)
+        # loss = F.smooth_l1_loss(q_values, target_q_values)
         
         self.optimizer.zero_grad()
         
         loss.backward()
         
-        torch.nn.utils.clip_grad_norm_(self.q_net.parameters(), max_norm=1.0)
+        # torch.nn.utils.clip_grad_norm_(self.q_net.parameters(), max_norm=1.0)
 
         self.optimizer.step()
 
@@ -213,13 +213,9 @@ class DQN:
     def train(self, batch_size = 32, seed = None, log_q_values = False, trial=None, report_freq=10):
         reward_history = []
         moving_avg_history = []
-        eval_reward_history = []
         best_moving_avg = -np.inf
-        best_eval_reward = -np.inf
 
         first_solved_episode = None
-        eval_std = 0.0
-        eval_reward = 0.0
         
         bar = tqdm(range(self.episodes), desc="Training DQN")
         for episode in bar:
@@ -238,15 +234,11 @@ class DQN:
 
             # eval_reward, eval_std = self.evaluate_greedy_policy(n_episodes=5, seed=10000 + episode * 100)
 
-            eval_reward_history.append((episode, eval_reward))
-            best_eval_reward = max(best_eval_reward, eval_reward)
 
-            if first_solved_episode is None and eval_reward >= 495.0:
+            if first_solved_episode is None and total_reward >= 495.0:
                 first_solved_episode = episode
 
             if hasattr(self, "writer"):
-                self.writer.add_scalar("Eval/GreedyReward", eval_reward, episode)
-
                 self.writer.add_scalar('Reward/Episode', total_reward, episode)
                 self.writer.add_scalar("Reward/TotalSteps", total_reward, self.total_steps)
 
@@ -259,25 +251,25 @@ class DQN:
             
 
             if trial is not None and episode % report_freq == 0:
-                trial.report(eval_reward, step=episode)
+                # trial.report(total_reward, step=episode)
 
-                if trial.should_prune():
-                    print(f"Trial pruned at episode {episode}")
+                # if trial.should_prune():
+                #     print(f"Trial pruned at episode {episode}")
 
-                    raise optuna.exceptions.TrialPruned()
+                #     raise optuna.exceptions.TrialPruned()
 
-                # convergence_bonus = max(0.0, 1.0 - (episode / 160))
+                convergence_bonus = max(0.0, 1.0 - (episode / 160))
 
-                # score = (moving_avg - 0.25 * moving_std + 10 * convergence_bonus)                
+                score = (moving_avg - 0.25 * np.std(reward_history[-window:]) + 10 * convergence_bonus)                
 
-                # if episode % report_freq == 0:
-                #     trial.report(score, step=episode)
+                if episode % report_freq == 0:
+                    trial.report(score, step=episode)
 
-                #     if trial.should_prune():
+                    if trial.should_prune():
 
-                #         print(f"Trial pruned at episode {episode}")
+                        print(f"Trial pruned at episode {episode}")
 
-                #         raise optuna.exceptions.TrialPruned()
+                        raise optuna.exceptions.TrialPruned()
 
             
             bar.set_postfix({'Reward': total_reward, 'Mean Reward': reward_per_step, 'Loss': mean_loss})
@@ -288,9 +280,5 @@ class DQN:
                 "final_moving_avg": moving_avg_history[-1],
                 "best_moving_avg": best_moving_avg,
                 "final_std": np.std(reward_history[-20:]),
-                "eval_reward_history": eval_reward_history,
-                "final_eval_reward": eval_reward_history[-1][1],
-                "best_eval_reward": best_eval_reward,
-                "final_eval_std": eval_std,
                 "first_solved_episode": first_solved_episode
                 }

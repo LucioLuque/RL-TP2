@@ -88,9 +88,9 @@ def make_objective(
         finally:
             env.close()
 
-        final_eval = training_stats["final_eval_reward"]
-        best_eval = training_stats["best_eval_reward"]
-        final_eval_std = training_stats["final_eval_std"]
+        final_reward = training_stats["final_moving_avg"]
+        best_reward = training_stats["best_moving_avg"]
+        final_std = training_stats["final_std"]
 
         first_solved_episode = training_stats["first_solved_episode"]
 
@@ -98,14 +98,14 @@ def make_objective(
             score = -np.inf
         else:
             speed_score = max(0.0, 160 - first_solved_episode)
-            score = (0.6 * final_eval + 0.4 * best_eval - 0.3 * final_eval_std + 0.5 * speed_score)
+            score = (0.6 * final_reward + 0.4 * best_reward - 0.3 * final_std + 0.5 * speed_score)
 
         trial_data = {
             "trial_number": trial.number,
             "status": "completed",
-            "final_moving_avg": float(final_eval),
-            "best_moving_avg": float(best_eval),
-            "final_std": float(final_eval_std),
+            "final_moving_avg": float(final_reward),
+            "best_moving_avg": float(best_reward),
+            "final_std": float(final_std),
             "score": float(score),
             "hparams": hparams,
         }
@@ -114,16 +114,16 @@ def make_objective(
             f.write(json.dumps(trial_data) + "\n")
 
         if (
-            best_eval >= 495
-            and final_eval_std <= 10
+            best_reward >= 495
+            and final_std <= 10
         ):
 
             converged_data = {
                 "trial_number": trial.number,
                 "score": float(score),
-                "final_moving_avg": float(final_eval),
-                "best_moving_avg": float(best_eval),
-                "final_std": float(final_eval_std),
+                "final_moving_avg": float(final_reward),
+                "best_moving_avg": float(best_reward),
+                "final_std": float(final_std),
                 "hparams": hparams,
             }
 
@@ -133,8 +133,8 @@ def make_objective(
         print(
             f"Trial {trial.number} | "
             f"Score={score:.2f} | "
-            f"FinalAvg={final_eval:.2f} | "
-            f"Std={final_eval_std:.2f}"
+            f"FinalAvg={final_reward:.2f} | "
+            f"Std={final_std:.2f}"
         )
 
         return score
