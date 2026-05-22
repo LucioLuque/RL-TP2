@@ -236,6 +236,7 @@ class AgentDQN:
         self.n_step_buffer.clear()
 
         total_reward = 0.0
+        pure_reward_total = 0.0
         losses = []
         epsilon = self.get_epsilon(episode)
 
@@ -245,7 +246,7 @@ class AgentDQN:
 
             next_state, reward, terminated, truncated, info = self.env.step(action)
             done = terminated or truncated
-
+            pure_reward = reward
             reward = self.reward_shaping(next_state, reward, terminated)
 
             self.n_step_buffer.append((state, action, reward, next_state, done))
@@ -277,39 +278,9 @@ class AgentDQN:
 
         
 
-        return total_reward, mean_reward, mean_loss
+        return total_reward, mean_reward, mean_loss, pure_reward_total
     
-    def log_all_q_values(self, episode):
-        if not hasattr(self, "writer"):
-            return
-
-        n_actions = self.env.action_space.n
-
-        if isinstance(self.env.observation_space, gym.spaces.Discrete):
-            n_states = self.env.observation_space.n
-            states = list(range(n_states))
-            states_tensor = self.obs_to_tensor(states)
-            state_names = [f"state_{s}" for s in states]
-
-        else:
-            return
-
-        self.q_net.eval()
-        with torch.no_grad():
-            q_values = self.q_net(states_tensor).detach().cpu().numpy()
-        self.q_net.train()
-
-        for s_idx, state_name in enumerate(state_names):
-            for a in range(n_actions):
-                q_sa = q_values[s_idx, a]
-
-                self.writer.add_scalar(
-                    f"Q-values/Episode/{state_name}_action_{a}",
-                    q_sa,
-                    episode
-                )
-    
-    def train(self, batch_size = 32, seed = None, log_q_values = False, trial=None, report_freq=10, prefill_path=None):
+    def train(self, batch_size = 32, seed = None, prefill_path=None):
 
         if prefill_path is not None and os.path.exists(prefill_path):
             self.replay_buffer.load(prefill_path)
@@ -324,52 +295,25 @@ class AgentDQN:
         
         bar = tqdm(range(self.episodes), desc="Training DQN")
         for episode in bar:
-            total_reward, reward_per_step, mean_loss = self.run_episode(episode, batch_size, seed)
+            total_reward, reward_per_step, mean_loss, pure_reward_total = self.run_episode(episode, batch_size, seed)
 
             reward_history.append(total_reward)
 
             if hasattr(self, 'writer'):
                 self.writer.add_scalar('Reward/Episode', total_reward, episode)
                 self.writer.add_scalar("Reward/TotalSteps", total_reward, self.total_steps)
-
+                self.writer.add_scalar('Reward/Pure/Episode', pure_reward_total, episode)
 
                 self.writer.add_scalar('Loss/Episode', mean_loss, episode)
                 self.writer.add_scalar('Mean Reward per step/Episode', reward_per_step, episode)
-
-                if log_q_values:
-                    self.log_all_q_values(episode)
             
             window = min(20, len(reward_history))
 
             moving_avg = np.mean(reward_history[-window:])
-            moving_std = np.std(reward_history[-window:])
 
             moving_avg_history.append(moving_avg)
 
             best_moving_avg = max(best_moving_avg, moving_avg)
-
-            if trial is not None:
-
-                convergence_bonus = max(
-                    0.0,
-                    1.0 - (episode / 160)
-                )
-
-                score = (
-                    moving_avg
-                    - 0.25 * moving_std
-                    + 10 * convergence_bonus
-                )                
-
-                if episode % report_freq == 0:
-                    trial.report(score, step=episode)
-
-                    if trial.should_prune():
-
-                        print(f"Trial pruned at episode {episode}")
-
-                        raise optuna.exceptions.TrialPruned()
-
             
             bar.set_postfix({'Reward': total_reward, 'Mean Reward': reward_per_step, 'Loss': mean_loss})
 

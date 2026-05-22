@@ -64,6 +64,10 @@ class DQN:
         self.updates = 0
 
         self.optimizer = torch.optim.Adam(self.q_net.parameters(), lr=lr)
+
+        self.scheduler = torch.optim.lr_scheduler.ExponentialLR(
+            self.optimizer, gamma=0.995
+        )
                 
         if log_dir is not None:
             self.writer = SummaryWriter(log_dir=log_dir)
@@ -220,6 +224,8 @@ class DQN:
         bar = tqdm(range(self.episodes), desc="Training DQN")
         for episode in bar:
             total_reward, reward_per_step, mean_loss, episode_steps = self.run_episode(episode, batch_size, seed)
+            self.scheduler.step()
+
             self.total_steps += episode_steps
 
             reward_history.append(total_reward)
