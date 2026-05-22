@@ -1,18 +1,50 @@
+# mountaincar:
+#   episodes: 60000
+#   buffer_size: 75000
+#   max_steps: 200
+#   gamma: 0.99
+#   lr: 0.0005
+#   tau: 0.005
+#   min_epsilon: 0.05
+#   max_epsilon: 1.0
+#   decay_rate: 0.00005
+#   batch_size: 64
+#   prefill_episodes: 50
+#   prefill_epsilon: 0.2
+#   n_step: 3
+#   batch_size: 64
+
 mountaincar:
-  episodes: 75000
-  buffer_size: 50000
+  episodes: 9936
+  buffer_size: 20000
   max_steps: 200
   gamma: 0.99
-  lr: 0.0005
+  lr: 0.001
   tau: 0.005
   min_epsilon: 0.05
   max_epsilon: 1.0
-  decay_rate: 0.00005
+  decay_rate: 0.01
   batch_size: 64
   prefill_episodes: 50
-  prefill_epsilon: 0.2
+  prefill_epsilon: 0.05
   n_step: 3
   batch_size: 64
+
+# mountaincar: #best
+#   episodes: 75000
+#   buffer_size: 50000
+#   max_steps: 200
+#   gamma: 0.99
+#   lr: 0.0005
+#   tau: 0.005
+#   min_epsilon: 0.05
+#   max_epsilon: 1.0
+#   decay_rate: 0.00005
+#   batch_size: 64
+#   prefill_episodes: 50
+#   prefill_epsilon: 0.2
+#   n_step: 3
+#   batch_size: 64
 
 # mountaincar:
 #   episodes: 75000

@@ -65,8 +65,11 @@ class DQN:
 
         self.optimizer = torch.optim.Adam(self.q_net.parameters(), lr=lr)
 
-        self.scheduler = torch.optim.lr_scheduler.ExponentialLR(
-            self.optimizer, gamma=0.995
+        self.scheduler = torch.optim.lr_scheduler.LinearLR(
+            self.optimizer,
+            start_factor=1.0,
+            end_factor=0.1,
+            total_iters=self.episodes
         )
                 
         if log_dir is not None:

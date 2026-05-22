@@ -13,10 +13,10 @@ from utils import deterministic, load_from_tensorboard
 from agent_dqn import AgentDQN
 from q_network import QNetwork
 
-def train_dqn_agent(experiment_folder, env, episodes, buffer_size, max_steps, gamma, lr, tau, min_epsilon, max_epsilon, decay_rate, batch_size, prefill_episodes, prefill_epsilon, n_step, seed=42, save=True, log_q_values=False, trial = None, prefill_path = None):
+def train_dqn_agent(experiment_folder, env, episodes, buffer_size, max_steps, gamma, lr, tau, min_epsilon, max_epsilon, decay_rate, batch_size, prefill_episodes, prefill_epsilon, n_step, huber=False, seed=42, save=True, prefill_path = None):
 
     run_folder = f"../runs/agent_dqn/{experiment_folder}"
-    experiment = f"epi_{episodes}_buf_{buffer_size}_steps_{max_steps}_g_{gamma}_lr_{lr}_tau_{tau}_eps_{min_epsilon}_max_eps_{max_epsilon}_decay_{decay_rate}_batch_{batch_size}_n_{n_step}_pepi_{prefill_episodes}_peps_{prefill_epsilon}"
+    experiment = f"epi_{episodes}_buf_{buffer_size}_steps_{max_steps}_g_{gamma}_lr_{lr}_tau_{tau}_eps_{min_epsilon}_max_eps_{max_epsilon}_decay_{decay_rate}_batch_{batch_size}_n_{n_step}_pepi_{prefill_episodes}_peps_{prefill_epsilon}_h_{huber}"
     path = f"{run_folder}/{experiment}"
 
     model_path = f"../models/saved_models/agent_dqn/{experiment_folder}/{experiment}.npy"
@@ -37,9 +37,8 @@ def train_dqn_agent(experiment_folder, env, episodes, buffer_size, max_steps, ga
             max_steps = max_steps, gamma = gamma, lr = lr, tau = tau,
             min_epsilon = min_epsilon, max_epsilon = max_epsilon, decay_rate = decay_rate,
             prefill_episodes=prefill_episodes, prefill_epsilon=prefill_epsilon, n_step=n_step,
-            log_dir = log_dir)
-    training_results = dqn_model.train(batch_size = batch_size, seed = seed,
-                                    log_q_values = log_q_values, trial = trial, prefill_path = prefill_path)
+            log_dir = log_dir, huber = huber)
+    training_results = dqn_model.train(batch_size = batch_size, seed = seed, prefill_path = prefill_path)
     if save:
         dqn_model.q_net.save(model_path)
 
@@ -87,40 +86,6 @@ def evaluate_dqn(path, env, episodes=100, seed=42):
     std = float(np.std(episode_rewards))
 
     return mean_reward, std
-
-# def evaluate_dqn_model(path, env, model_params, episodes=100, seed=42):  
-#     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  
-#     if isinstance(env.observation_space, gym.spaces.Discrete):
-#         input_dim = env.observation_space.n
-#     else:
-#         input_dim = int(np.prod(env.observation_space.shape))
-
-#     q_net = QNetwork(input_dim, env.action_space.n).to(device)
-#     q_net.load_state_dict(model_params)
-#     q_net.eval()
-
-#     successes = 0
-#     rewards = 0.0
-#     for episode in range(episodes):
-#         state, info = env.reset(seed=seed + episode)
-
-#         terminated = False
-#         truncated = False
-#         reward_ep = 0.0
-
-#         while not terminated and not truncated:
-#             state_tensor = obs_to_tensor([state], env, device)
-#             action = q_net.get_action(state_tensor)
-#             with torch.no_grad():
-#                     q_values = q_net(state_tensor)
-#             state, reward, terminated, truncated, info = env.step(action)
-#             reward_ep += reward
-#         if reward_ep == 500:
-#             successes += 1
-        
-#         rewards += reward_ep
-
-#     return successes / episodes, rewards / episodes
 
 def record_experiment(experiment_path, experiment_name, env, num_episodes=1, epsilon=0.0, seed=42):
     deterministic(seed=seed)

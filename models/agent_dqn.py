@@ -48,7 +48,7 @@ class ReplayBuffer:
 
 class AgentDQN:
     def __init__(self, env, episodes: int, buffer_size: int, max_steps: int, gamma: float, lr: float,
-        tau: float, min_epsilon: float, max_epsilon: float, decay_rate: float, prefill_episodes: int = 20, prefill_epsilon: float = 0.05, n_step: int = 1, log_dir: str = None):
+        tau: float, min_epsilon: float, max_epsilon: float, decay_rate: float, prefill_episodes: int = 20, prefill_epsilon: float = 0.05, n_step: int = 1, log_dir: str = None, huber: bool = False):
         self.env = env
         self.episodes = episodes
 
@@ -70,7 +70,8 @@ class AgentDQN:
 
         self.n_step = n_step
         self.n_step_buffer = deque(maxlen=n_step)
-
+        
+        self.huber = huber
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
@@ -129,16 +130,17 @@ class AgentDQN:
             next_q_values = self.target_q_net(next_states_tensor).gather(1, next_actions.unsqueeze(1)).squeeze(1)
 
             target_q_values = rewards_tensor + (self.gamma ** self.n_step) * next_q_values * (1 - dones_tensor)
-
-        # loss = F.smooth_l1_loss(q_values, target_q_values)
-
-        loss = F.mse_loss(q_values, target_q_values)
         
+        if self.huber:
+            loss = F.smooth_l1_loss(q_values, target_q_values)
+        else:
+            loss = F.mse_loss(q_values, target_q_values)
+
         self.optimizer.zero_grad()
         
         loss.backward()
-        
-        # torch.nn.utils.clip_grad_norm_(self.q_net.parameters(), max_norm=1.0)
+        if self.huber:
+            torch.nn.utils.clip_grad_norm_(self.q_net.parameters(), max_norm=1.0)
 
         self.optimizer.step()
 
@@ -247,6 +249,7 @@ class AgentDQN:
             next_state, reward, terminated, truncated, info = self.env.step(action)
             done = terminated or truncated
             pure_reward = reward
+            pure_reward_total += pure_reward
             reward = self.reward_shaping(next_state, reward, terminated)
 
             self.n_step_buffer.append((state, action, reward, next_state, done))
