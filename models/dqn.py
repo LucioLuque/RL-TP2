@@ -1,15 +1,12 @@
 import numpy as np
-import os
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 import torch
 import gymnasium as gym
 import torch.nn.functional as F
 from tqdm.auto import tqdm
-import optuna
 
 from q_network import QNetwork
-
 
 class ReplayBuffer:
     def __init__(self, size):
@@ -65,12 +62,7 @@ class DQN:
 
         self.optimizer = torch.optim.Adam(self.q_net.parameters(), lr=lr)
 
-        self.scheduler = torch.optim.lr_scheduler.LinearLR(
-            self.optimizer,
-            start_factor=1.0,
-            end_factor=0.1,
-            total_iters=self.episodes
-        )
+        self.scheduler = torch.optim.lr_scheduler.ExponentialLR(self.optimizer, gamma=0.995)
                 
         if log_dir is not None:
             self.writer = SummaryWriter(log_dir=log_dir)
@@ -113,14 +105,11 @@ class DQN:
             target_q_values = rewards_tensor + self.gamma * next_q_values * (1 - dones_tensor)
 
         loss = F.mse_loss(q_values, target_q_values)
-        # loss = F.smooth_l1_loss(q_values, target_q_values)
         
         self.optimizer.zero_grad()
         
         loss.backward()
         
-        # torch.nn.utils.clip_grad_norm_(self.q_net.parameters(), max_norm=1.0)
-
         self.optimizer.step()
 
         self.updates += 1
@@ -128,34 +117,6 @@ class DQN:
             self.target_q_net.load_state_dict(self.q_net.state_dict())
 
         return loss.item()
-
-    def evaluate_greedy_policy(self, n_episodes=5, seed=10000):
-        rewards = []
-
-        was_training = self.q_net.training
-        self.q_net.eval()
-
-        for ep in range(n_episodes):
-            state, info = self.env.reset(seed=seed + ep)
-            total_reward = 0.0
-
-            for _ in range(self.max_steps):
-                action = self.choose_action(state, epsilon=0.0)
-
-                next_state, reward, terminated, truncated, info = self.env.step(action)
-
-                total_reward += reward
-                state = next_state
-
-                if terminated or truncated:
-                    break
-
-            rewards.append(total_reward)
-
-        if was_training:
-            self.q_net.train()
-
-        return float(np.mean(rewards)), float(np.std(rewards))
         
     def run_episode(self, episode, batch_size, seed = None):
         if seed is not None:
@@ -189,12 +150,9 @@ class DQN:
         mean_loss = np.mean(losses) if losses else 0.0
         mean_reward = total_reward / (step + 1)
 
-        return total_reward, mean_reward, mean_loss, step + 1
+        return total_reward, mean_reward, mean_loss
     
     def log_all_q_values(self, episode):
-        if not hasattr(self, "writer"):
-            return
-
         n_actions = self.env.action_space.n
 
         if isinstance(self.env.observation_space, gym.spaces.Discrete):
@@ -214,80 +172,20 @@ class DQN:
         for s_idx, state_name in enumerate(state_names):
             for a in range(n_actions):
                 q_sa = q_values[s_idx, a]
-
                 self.writer.add_scalar(f"Q-values/Episode/{state_name}_action_{a}", q_sa, episode)
     
-    def train(self, batch_size = 32, seed = None, log_q_values = False, trial=None, report_freq=10):
-        reward_history = []
-        moving_avg_history = []
-        best_moving_avg = -np.inf
-
-        first_solved_episode = None
-        
+    def train(self, batch_size = 32, seed = None, log_q_values = False):
         bar = tqdm(range(self.episodes), desc="Training DQN")
         for episode in bar:
-            total_reward, reward_per_step, mean_loss, episode_steps = self.run_episode(episode, batch_size, seed)
+            reward, reward_per_step, mean_loss = self.run_episode(episode, batch_size, seed)
             self.scheduler.step()
 
-            self.total_steps += episode_steps
-
-            reward_history.append(total_reward)
-            
-            window = min(20, len(reward_history))
-
-            moving_avg = np.mean(reward_history[-window:])
-
-            moving_avg_history.append(moving_avg)
-
-            best_moving_avg = max(best_moving_avg, moving_avg)
-
-            # eval_reward, eval_std = self.evaluate_greedy_policy(n_episodes=5, seed=10000 + episode * 100)
-
-
-            if first_solved_episode is None and total_reward >= 495.0:
-                first_solved_episode = episode
-
             if hasattr(self, "writer"):
-                self.writer.add_scalar('Reward/Episode', total_reward, episode)
-                self.writer.add_scalar("Reward/TotalSteps", total_reward, self.total_steps)
-
-
                 self.writer.add_scalar('Loss/Episode', mean_loss, episode)
-                self.writer.add_scalar('Mean Reward per step/Episode', reward_per_step, episode)
+                self.writer.add_scalar('Reward/Episode', reward, episode)
+                self.writer.add_scalar('Reward per step/Episode', reward_per_step, episode)
 
                 if log_q_values:
                     self.log_all_q_values(episode)
             
-
-            if trial is not None and episode % report_freq == 0:
-                # trial.report(total_reward, step=episode)
-
-                # if trial.should_prune():
-                #     print(f"Trial pruned at episode {episode}")
-
-                #     raise optuna.exceptions.TrialPruned()
-
-                convergence_bonus = max(0.0, 1.0 - (episode / 160))
-
-                score = (moving_avg - 0.25 * np.std(reward_history[-window:]) + 10 * convergence_bonus)                
-
-                if episode % report_freq == 0:
-                    trial.report(score, step=episode)
-
-                    if trial.should_prune():
-
-                        print(f"Trial pruned at episode {episode}")
-
-                        raise optuna.exceptions.TrialPruned()
-
-            
-            bar.set_postfix({'Reward': total_reward, 'Mean Reward': reward_per_step, 'Loss': mean_loss})
-
-        return {
-                "reward_history": reward_history,
-                "moving_avg_history": moving_avg_history,
-                "final_moving_avg": moving_avg_history[-1],
-                "best_moving_avg": best_moving_avg,
-                "final_std": np.std(reward_history[-20:]),
-                "first_solved_episode": first_solved_episode
-                }
+            bar.set_postfix({'Reward': reward, 'Mean Reward': reward_per_step, 'Loss': mean_loss})

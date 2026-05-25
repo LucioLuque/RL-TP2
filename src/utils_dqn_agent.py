@@ -1,15 +1,11 @@
 import os
-from tqdm.auto import tqdm
 import numpy as np
-from pathlib import Path
-import matplotlib.pyplot as plt
 from gymnasium.wrappers import RecordVideo
 import torch
 import gymnasium as gym
 import torch.nn.functional as F
-import optuna
 
-from utils import deterministic, load_from_tensorboard
+from utils import deterministic
 from agent_dqn import AgentDQN
 from q_network import QNetwork
 
@@ -24,7 +20,7 @@ def train_dqn_agent(experiment_folder, env, episodes, buffer_size, max_steps, ga
     if os.path.exists(path):
         print(f"Experiment {run_folder}/{experiment} already exists.")
         q_net_state_dict = torch.load(model_path)
-        return model_path, q_net_state_dict, None
+        return model_path, q_net_state_dict
     
     deterministic(seed)
 
@@ -38,11 +34,11 @@ def train_dqn_agent(experiment_folder, env, episodes, buffer_size, max_steps, ga
             min_epsilon = min_epsilon, max_epsilon = max_epsilon, decay_rate = decay_rate,
             prefill_episodes=prefill_episodes, prefill_epsilon=prefill_epsilon, n_step=n_step,
             log_dir = log_dir, huber = huber)
-    training_results = dqn_model.train(batch_size = batch_size, seed = seed, prefill_path = prefill_path)
+    dqn_model.train(batch_size = batch_size, seed = seed, prefill_path = prefill_path)
     if save:
         dqn_model.q_net.save(model_path)
 
-    return model_path, dqn_model.q_net.state_dict(), training_results
+    return model_path, dqn_model.q_net.state_dict()
 
 def obs_to_tensor(state, env, device):
     if isinstance(env.observation_space, gym.spaces.Discrete):

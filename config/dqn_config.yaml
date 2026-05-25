@@ -34,65 +34,16 @@ env3:
   decay_rate: 0.01
   batch_size: 64
 
-# cartpole:
-#   episodes: 200
-#   buffer_size: 10000
-#   max_steps: 500
-#   gamma: 0.99
-#   lr: 0.0001
-#   target_update_freq: 500
-#   min_epsilon: 0.05
-#   max_epsilon: 1.0
-#   decay_rate: 0.001
-#   batch_size: 64
-
-
-# cartpole:
-#   episodes: 200
-#   buffer_size: 10000
-#   max_steps: 500
-#   gamma: 0.99
-#   lr: 0.0001
-#   target_update_freq: 500
-#   min_epsilon: 0.05
-#   max_epsilon: 1.0
-#   decay_rate: 0.001
-#   batch_size: 64
-
-# cartpole:
-#   episodes: 200
-#   buffer_size: 10000
-#   max_steps: 500
-#   gamma: 0.99
-#   lr: 0.0005
-#   target_update_freq: 70
-#   min_epsilon: 0.01
-#   max_epsilon: 1.0
-#   decay_rate: 0.03
-#   batch_size: 64
-
 cartpole:
-  episodes: 200
+  episodes: 199
   buffer_size: 10000
   max_steps: 500
   gamma: 0.99
-  lr: 0.0005
-  target_update_freq: 100
+  lr: 0.001
+  target_update_freq: 130
   min_epsilon: 0.01
   max_epsilon: 1.0
-  decay_rate: 0.05
-  batch_size: 64
-
-cartpole_2:
-  episodes: 200
-  buffer_size: 1413
-  max_steps: 500
-  gamma: 0.9836175774731484
-  lr: 0.0018005418270375267
-  target_update_freq: 600
-  min_epsilon: 0.040588267434185095
-  max_epsilon: 1.0
-  decay_rate: 0.05262779049970934
+  decay_rate: 0.02
   batch_size: 64
 
 xtra:

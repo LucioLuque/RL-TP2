@@ -7,13 +7,12 @@ from gymnasium.wrappers import RecordVideo
 import torch
 import gymnasium as gym
 import torch.nn.functional as F
-import optuna
 
-from utils import deterministic, load_from_tensorboard
+from utils import deterministic
 from dqn import DQN
 from q_network import QNetwork
 
-def train_dqn(experiment_folder, env, episodes, buffer_size, max_steps, gamma, lr, target_update_freq, min_epsilon, max_epsilon, decay_rate, batch_size,seed=42, save=True, log_q_values=False, trial = None):
+def train_dqn(experiment_folder, env, episodes, buffer_size, max_steps, gamma, lr, target_update_freq, min_epsilon, max_epsilon, decay_rate, batch_size, seed=42, save=True, log_q_values=False):
 
     run_folder = f"../runs/dqn/{experiment_folder}"
     experiment = f"epi_{episodes}_buf_{buffer_size}_steps_{max_steps}_g_{gamma}_lr_{lr}_target_{target_update_freq}_eps_{min_epsilon}_max_eps_{max_epsilon}_decay_{decay_rate}_batch_{batch_size}"
@@ -24,7 +23,7 @@ def train_dqn(experiment_folder, env, episodes, buffer_size, max_steps, gamma, l
     if os.path.exists(path):
         print(f"Experiment {run_folder}/{experiment} already exists.")
         q_net_state_dict = torch.load(model_path)
-        return model_path, q_net_state_dict, None
+        return model_path, q_net_state_dict
     
     deterministic(seed)
 
@@ -34,11 +33,11 @@ def train_dqn(experiment_folder, env, episodes, buffer_size, max_steps, gamma, l
     log_dir = path if save else None
     
     dqn_model = DQN(env, episodes, buffer_size, max_steps, gamma, lr, target_update_freq, min_epsilon, max_epsilon, decay_rate, log_dir)
-    training_results = dqn_model.train(batch_size, seed, log_q_values, trial)
+    dqn_model.train(batch_size, seed, log_q_values)
     if save:
         dqn_model.q_net.save(model_path)
 
-    return model_path, dqn_model.q_net.state_dict(), training_results
+    return model_path, dqn_model.q_net.state_dict()
 
 def obs_to_tensor(state, env, device):
     if isinstance(env.observation_space, gym.spaces.Discrete):
@@ -90,13 +89,9 @@ def evaluate_dqn_env2(path, env, episodes=100, seed=42):
     q_net.load(path)
     q_net.eval()
 
-    obs_q = {
-        -1.0: set(),
-        1.0: set()
-    }
+    obs_q = {-1.0: set(), 1.0: set()}
 
     total_error = 0.0
-    total_steps = 0
 
     def to_semantic_obs(state_value):
         return -1.0 if int(state_value) == 0 else 1.0
@@ -126,7 +121,6 @@ def evaluate_dqn_env2(path, env, episodes=100, seed=42):
 
     return mse, obs_q
 
-
 def evaluate_dqn_env3(path, env, gamma, episodes=100, seed=42, tol=0.1): 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if isinstance(env.observation_space, gym.spaces.Discrete):
@@ -134,15 +128,11 @@ def evaluate_dqn_env3(path, env, gamma, episodes=100, seed=42, tol=0.1):
     else:
         input_dim = int(np.prod(env.observation_space.shape))
 
-
     q_net = QNetwork(input_dim, env.action_space.n).to(device)
     q_net.load(path)
     q_net.eval()
 
-    expected_q= {
-        0: gamma,
-        1: 1.0
-    }
+    expected_q= {0: gamma, 1: 1.0}
 
     obs_q = {0: set(), 1: set()}
 
@@ -183,7 +173,6 @@ def evaluate_dqn_env3(path, env, gamma, episodes=100, seed=42, tol=0.1):
 
     return success_rate, mse, obs_q
 
-
 def evaluate_dqn(path, env, episodes=100, seed=42):  
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  
     if isinstance(env.observation_space, gym.spaces.Discrete):
@@ -217,7 +206,6 @@ def evaluate_dqn(path, env, episodes=100, seed=42):
 
     return successes / episodes, rewards / episodes
 
-
 def evaluate_dqn_model(path, env, model_params, episodes=100, seed=42):  
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  
     if isinstance(env.observation_space, gym.spaces.Discrete):
@@ -242,7 +230,7 @@ def evaluate_dqn_model(path, env, model_params, episodes=100, seed=42):
             state_tensor = obs_to_tensor([state], env, device)
             action = q_net.get_action(state_tensor)
             with torch.no_grad():
-                    q_values = q_net(state_tensor)
+                q_values = q_net(state_tensor)
             state, reward, terminated, truncated, info = env.step(action)
             reward_ep += reward
         if reward_ep == 500:
@@ -257,12 +245,7 @@ def record_experiment(experiment_path, experiment_name, env, num_episodes=1, eps
     video_folder = os.path.join("..", "videos")
     os.makedirs(video_folder, exist_ok=True)
     
-    env = RecordVideo(
-        env, 
-        video_folder=video_folder,
-        episode_trigger=lambda ep: True,  
-        name_prefix=experiment_name
-    )
+    env = RecordVideo(env,  video_folder=video_folder, episode_trigger=lambda ep: True, name_prefix=experiment_name)
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  
 

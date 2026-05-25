@@ -6,12 +6,10 @@ import torch
 import gymnasium as gym
 import torch.nn.functional as F
 from tqdm.auto import tqdm
-import optuna
 from collections import deque
 import pickle
 
 from q_network import QNetwork
-
 
 class ReplayBuffer:
     def __init__(self, size):
@@ -44,7 +42,6 @@ class ReplayBuffer:
             self.buffer = pickle.load(f)
 
         self.seen = len(self.buffer)
-
 
 class AgentDQN:
     def __init__(self, env, episodes: int, buffer_size: int, max_steps: int, gamma: float, lr: float,
@@ -150,8 +147,7 @@ class AgentDQN:
         return loss.item()
     
     def reward_shaping(self, state, reward, terminated):
-        # reward shaping: bonus for velocity
-        reward += 3 * abs(state[1])
+        reward += 3 * abs(state[1]) #velocity
 
         if terminated:
             reward += 10
@@ -279,8 +275,6 @@ class AgentDQN:
         mean_loss = np.mean(losses) if losses else 0.0
         mean_reward = total_reward / (step + 1)
 
-        
-
         return total_reward, mean_reward, mean_loss, pure_reward_total
     
     def train(self, batch_size = 32, seed = None, prefill_path=None):
@@ -291,16 +285,10 @@ class AgentDQN:
             self.prefill_replay_buffer(seed)
             if prefill_path is not None:
                 self.replay_buffer.save(prefill_path)
-
-        reward_history = []
-        moving_avg_history = []
-        best_moving_avg = -np.inf
         
         bar = tqdm(range(self.episodes), desc="Training DQN")
         for episode in bar:
             total_reward, reward_per_step, mean_loss, pure_reward_total = self.run_episode(episode, batch_size, seed)
-
-            reward_history.append(total_reward)
 
             if hasattr(self, 'writer'):
                 self.writer.add_scalar('Reward/Episode', total_reward, episode)
@@ -310,20 +298,4 @@ class AgentDQN:
                 self.writer.add_scalar('Loss/Episode', mean_loss, episode)
                 self.writer.add_scalar('Mean Reward per step/Episode', reward_per_step, episode)
             
-            window = min(20, len(reward_history))
-
-            moving_avg = np.mean(reward_history[-window:])
-
-            moving_avg_history.append(moving_avg)
-
-            best_moving_avg = max(best_moving_avg, moving_avg)
-            
             bar.set_postfix({'Reward': total_reward, 'Mean Reward': reward_per_step, 'Loss': mean_loss})
-
-        return {
-                "reward_history": reward_history,
-                "moving_avg_history": moving_avg_history,
-                "final_moving_avg": moving_avg_history[-1],
-                "best_moving_avg": best_moving_avg,
-                "final_std": np.std(reward_history[-20:]),
-                }

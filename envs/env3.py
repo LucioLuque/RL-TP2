@@ -15,7 +15,7 @@ class TwoStepDelayedRewardEnv(gym.Env):
     self._step_count = 0
 
   def _get_obs(self):
-    return min(self._step_count, 1)
+    return 0 if self._step_count == 0 else 1
 
   def reset(self, seed: Optional[int] = None, options: Optional[dict] = None):
     super().reset(seed=seed)
@@ -34,12 +34,10 @@ class TwoStepDelayedRewardEnv(gym.Env):
     if self._terminated:
       raise RuntimeError("Terminated. reset")
 
-    reward = self._step_count
     self._step_count += 1
-    
-    if self._step_count > 1:
-      self._terminated = True
+    self._terminated = self._step_count == 2
     truncated = False
+    reward = 1 if self._terminated else 0
 
     observation = self._get_obs()
     info = {}

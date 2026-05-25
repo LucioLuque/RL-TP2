@@ -22,14 +22,12 @@ class QLearning:
             self.writer = SummaryWriter(log_dir=log_dir)
 
         self.Q = np.zeros((env.observation_space.n, env.action_space.n))
-        self.total_steps = 0
 
     def choose_action(self, state, epsilon):
         if np.random.rand() < epsilon:
             return self.env.action_space.sample()
         else:
             return np.argmax(self.Q[state])
-
 
     def get_epsilon(self, episode):
         return self.min_epsilon + (self.max_epsilon - self.min_epsilon) * np.exp(-self.decay_rate * episode)
@@ -60,7 +58,7 @@ class QLearning:
             total_reward += reward
             steps += 1
 
-        return total_reward, steps
+        return total_reward, total_reward / steps
     
 
     def log_all_q_values(self, episode):
@@ -84,15 +82,14 @@ class QLearning:
         total_rewards = []
 
         for episode in range(self.episodes):
-            total_reward, steps = self.run_episode(episode, seed + episode)
+            total_reward, reward_per_step = self.run_episode(episode, seed + episode)
 
-            self.total_steps += steps
             total_rewards.append(total_reward)
 
             if hasattr(self, "writer"):
                 
                 self.writer.add_scalar("Reward/Episode", total_reward, episode)
-                self.writer.add_scalar("Reward/TotalSteps", total_reward, self.total_steps)
+                self.writer.add_scalar('Reward per step/Episode', reward_per_step, episode)
 
                 if log_q_values:
                     self.log_all_q_values(episode)
